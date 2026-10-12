@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.electro"
-version = "2.0"
+version = "2.0.1"
 
 repositories {
     mavenCentral()
@@ -14,13 +14,13 @@ repositories {
 }
 
 dependencies {
-    compileOnly("com.hypixel.hytale:Server:latest.release")
+    compileOnly("com.hypixel.hytale:Server:0.7.0")
     implementation(fileTree("libs") { include("*.jar") })
 
     testImplementation(platform("org.junit:junit-bom:5.10.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("com.google.code.gson:gson:2.11.0")
-    testImplementation("com.hypixel.hytale:Server:latest.release")
+    testImplementation("com.hypixel.hytale:Server:0.7.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

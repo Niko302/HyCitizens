@@ -4,7 +4,6 @@
   "Modify": {
     "DefaultPlayerAttitude": "Ignore"
   },
-  "Appearance": "Player",
   "Parameters": {
     "ViewRange": {
       "Value": 0,
@@ -26,32 +25,5 @@
       "Value": 10,
       "Description": "Wander radius in blocks"
     }
-  },
-  "InteractionInstruction": {
-    "Instructions": [
-      {
-        "Continue": true,
-        "Sensor": {
-          "Type": "Any"
-        },
-        "Actions": [
-          {
-            "Type": "SetInteractable",
-            "Interactable": true
-          }
-        ]
-      },
-      {
-        "Sensor": {
-          "Type": "HasInteracted"
-        },
-        "Actions": [
-          {
-            "Type": "CitizenInteraction"
-          }
-        ]
-      }
-    ]
-  },
-  "NameTranslationKey": "Citizen"
+  }
 }

@@ -4,7 +4,6 @@
   "Modify": {
     "DefaultPlayerAttitude": "Neutral"
   },
-  "Appearance": "Player",
   "Parameters": {
     "MaxHealth": {
       "Value": 100,
@@ -14,32 +13,5 @@
       "Value": 1,
       "Description": "Wander radius in blocks"
     }
-  },
-  "InteractionInstruction": {
-    "Instructions": [
-      {
-        "Continue": true,
-        "Sensor": {
-          "Type": "Any"
-        },
-        "Actions": [
-          {
-            "Type": "SetInteractable",
-            "Interactable": true
-          }
-        ]
-      },
-      {
-        "Sensor": {
-          "Type": "HasInteracted"
-        },
-        "Actions": [
-          {
-            "Type": "CitizenInteraction"
-          }
-        ]
-      }
-    ]
-  },
-  "NameTranslationKey": "Citizen"
+  }
 }

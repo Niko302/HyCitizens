@@ -21,6 +21,7 @@ import com.electro.hycitizens.util.SkinUtilities;
 import com.electro.hycitizens.util.ThreadedScheduler;
 import com.hypixel.hytale.component.*;
 import com.hypixel.hytale.component.query.Query;
+import com.electro.hycitizens.util.ChunkAccess;
 import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.math.vector.Rotation3f;
 import org.joml.Vector3d;
@@ -251,7 +252,7 @@ public class CitizensManager {
                         Vector3d citizenPos = citizen.getCurrentPosition() != null ? citizen.getCurrentPosition() : citizen.getPosition();
 
                         long chunkIndex = ChunkUtil.indexChunkFromBlock(citizenPos.x, citizenPos.z);
-                        WorldChunk chunk = world.getChunkIfLoaded(chunkIndex);
+                        WorldChunk chunk = ChunkAccess.getChunkIfLoaded(world, chunkIndex);
                         if (chunk == null)
                             continue;
 
@@ -337,7 +338,7 @@ public class CitizensManager {
                         Rotation3f npcRotation = npcTransformComponent.getRotation();
 
                         long chunkIndex = ChunkUtil.indexChunkFromBlock(npcPosition.x, npcPosition.z);
-                        WorldChunk chunk = world.getChunkIfLoaded(chunkIndex);
+                        WorldChunk chunk = ChunkAccess.getChunkIfLoaded(world, chunkIndex);
                         if (chunk == null)
                             continue;
 
@@ -539,13 +540,13 @@ public class CitizensManager {
     private boolean isCitizenChunkLoaded(@Nonnull World world, @Nonnull CitizenData citizen) {
         Vector3d currentPosition = citizen.getCurrentPosition() != null ? citizen.getCurrentPosition() : citizen.getPosition();
         long currentChunkIndex = ChunkUtil.indexChunkFromBlock(currentPosition.x, currentPosition.z);
-        if (world.getChunkIfLoaded(currentChunkIndex) != null) {
+        if (ChunkAccess.getChunkIfLoaded(world, currentChunkIndex) != null) {
             return true;
         }
 
         Vector3d basePosition = citizen.getPosition();
         long baseChunkIndex = ChunkUtil.indexChunkFromBlock(basePosition.x, basePosition.z);
-        return world.getChunkIfLoaded(baseChunkIndex) != null;
+        return ChunkAccess.getChunkIfLoaded(world, baseChunkIndex) != null;
     }
 
     @Nullable
@@ -2292,7 +2293,7 @@ public class CitizensManager {
 
             world.execute(() -> {
                 long chunkIndex = ChunkUtil.indexChunkFromBlock(citizen.getPosition().x, citizen.getPosition().z);
-                WorldChunk chunk = world.getChunkIfLoaded(chunkIndex);
+                WorldChunk chunk = ChunkAccess.getChunkIfLoaded(world, chunkIndex);
 
                 if (chunk == null) {
                     queued[0] = false;
@@ -3035,7 +3036,7 @@ public class CitizensManager {
         }
 
         long chunkIndex = ChunkUtil.indexChunkFromBlock(citizen.getPosition().x, citizen.getPosition().z);
-        WorldChunk chunk = world.getChunkIfLoaded(chunkIndex);
+        WorldChunk chunk = ChunkAccess.getChunkIfLoaded(world, chunkIndex);
         if (chunk == null) {
             citizensCurrentlySpawning.remove(citizen.getId());
             getLogger().atInfo().log("Failed to spawn player model for citizen NPC: " + citizen.getName() + ". The world chunk is unloaded.");
@@ -3964,7 +3965,7 @@ public class CitizensManager {
                 world.execute(() -> {
                     Vector3d anchorPosition = getNametagAnchorPosition(citizen);
                     long chunkIndex = ChunkUtil.indexChunkFromBlock(anchorPosition.x, anchorPosition.z);
-                    WorldChunk chunk = world.getChunkIfLoaded(chunkIndex);
+                    WorldChunk chunk = ChunkAccess.getChunkIfLoaded(world, chunkIndex);
                     if (chunk == null) {
                         queued[0] = false;
                         return;
@@ -4399,7 +4400,7 @@ public class CitizensManager {
         world.execute(() -> {
             Vector3d anchorPosition = getNametagAnchorPosition(citizen);
             long chunkIndex = ChunkUtil.indexChunkFromBlock(anchorPosition.x, anchorPosition.z);
-            WorldChunk chunk = world.getChunkIfLoaded(chunkIndex);
+            WorldChunk chunk = ChunkAccess.getChunkIfLoaded(world, chunkIndex);
             if (chunk == null) {
                 // Chunk not loaded, just save it
                 if (save) {

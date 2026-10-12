@@ -3,6 +3,7 @@ package com.electro.hycitizens.listeners;
 import com.electro.hycitizens.HyCitizensPlugin;
 import com.electro.hycitizens.components.CitizenNpcIdentityComponent;
 import com.electro.hycitizens.models.CitizenData;
+import com.electro.hycitizens.util.ChunkAccess;
 import com.electro.hycitizens.util.ThreadedScheduler;
 import com.hypixel.hytale.component.Holder;
 import com.hypixel.hytale.component.Ref;
@@ -18,7 +19,6 @@ import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.chunk.ChunkColumn;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.EntitySection;
-import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
 import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
 import com.hypixel.hytale.server.core.universe.world.events.ChunkPreLoadProcessEvent;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
@@ -82,7 +82,7 @@ public class ChunkPreLoadListener {
     }
 
     public void onChunkPreload(ChunkPreLoadProcessEvent event) {
-        World world = event.getChunk().getWorld();
+        World world = event.getWorld();
         long eventChunkIndex = event.getChunk().getIndex();
         UUID worldUUID = world.getWorldConfig().getUuid();
 
@@ -261,7 +261,7 @@ public class ChunkPreLoadListener {
 
         World world = process.getWorld();
         long chunkIndex = process.getChunkIndex();
-        boolean loaded = world.getChunkIfLoaded(chunkIndex) != null;
+        boolean loaded = ChunkAccess.getChunkIfLoaded(world, chunkIndex) != null;
         long elapsedMs = System.currentTimeMillis() - process.getStartedAt();
 
         if (!loaded && elapsedMs < CHUNK_PROCESS_TIMEOUT_MS) {
@@ -270,16 +270,20 @@ public class ChunkPreLoadListener {
         }
 
         if (!loaded) {
-            WorldChunk chunkInMemory = world.getChunkIfInMemory(chunkIndex);
-            if (chunkInMemory == null) {
-                List<CitizenData> skippedCitizens = finishPendingChunkProcess(processKey, process);
-                if (!skippedCitizens.isEmpty()) {
-                    recordSkippedChunkRecovery(world, skippedCitizens.size());
+            // 0.7.0 removed the in-memory chunk accessors, so request the chunk through the
+            // chunk store instead and skip the citizens if it cannot be brought in.
+            world.getChunkStore().getChunkReferenceAsync(chunkIndex).whenComplete((chunkRef, error) -> {
+                if (error != null || chunkRef == null || !chunkRef.isValid()) {
+                    List<CitizenData> skippedCitizens = finishPendingChunkProcess(processKey, process);
+                    if (!skippedCitizens.isEmpty()) {
+                        recordSkippedChunkRecovery(world, skippedCitizens.size());
+                    }
+                    return;
                 }
-                return;
-            }
 
-            world.loadChunkIfInMemory(chunkIndex);
+                world.execute(() -> processChunkCitizens(world, finishPendingChunkProcess(processKey, process)));
+            });
+            return;
         }
 
         world.execute(() -> processChunkCitizens(world, finishPendingChunkProcess(processKey, process)));
@@ -611,7 +615,7 @@ public class ChunkPreLoadListener {
 
         if (totalRepairedCount > 0) {
             getLogger().atWarning().log("Repaired " + totalRepairedCount + " invalid PersistentModel scale values while loading chunk "
-                    + event.getChunk().getX() + ", " + event.getChunk().getZ() + " in world '" + event.getChunk().getWorld().getName() + "'.");
+                    + event.getChunk().getX() + ", " + event.getChunk().getZ() + " in world '" + event.getWorld().getName() + "'.");
         }
     }
 

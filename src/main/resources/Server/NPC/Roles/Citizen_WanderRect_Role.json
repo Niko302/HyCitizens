@@ -1,7 +1,6 @@
 ﻿{
   "Type": "Variant",
   "Reference": "Template_Citizen",
-  "Appearance": "Player",
   "Parameters": {
     "DefaultPlayerAttitude": {
       "Value": "Ignore",
@@ -27,6 +26,5 @@
       "Value": 10,
       "Description": "Wander radius in blocks"
     }
-  },
-  "NameTranslationKey": "Citizen"
+  }
 }

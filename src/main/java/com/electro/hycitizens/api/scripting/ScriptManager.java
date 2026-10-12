@@ -15,6 +15,7 @@ import com.electro.hycitizens.models.FactionConfig;
 import com.electro.hycitizens.models.MovementBehavior;
 import com.electro.hycitizens.api.scripting.ScriptAction.Branch;
 import com.electro.hycitizens.interactions.CitizenInteraction;
+import com.electro.hycitizens.util.BlockEdits;
 import com.electro.hycitizens.util.CommandExecutionUtil;
 import org.joml.Vector3d;
 
@@ -2694,7 +2695,11 @@ public class ScriptManager {
                 if (xVal == null || yVal == null || zVal == null) return CompletableFuture.completedFuture(null);
 
                 try {
-                    context.getWorld().breakBlock(xVal.intValue(), yVal.intValue(), zVal.intValue(), SetBlockSettings.FORCE_CHANGED);
+                    World world = context.getWorld();
+                    int x = xVal.intValue();
+                    int y = yVal.intValue();
+                    int z = zVal.intValue();
+                    world.execute(() -> BlockEdits.breakBlock(world, x, y, z, SetBlockSettings.FORCE_CHANGED));
                 } catch (Exception _) {}
                 return CompletableFuture.completedFuture(null);
             }
@@ -2710,7 +2715,11 @@ public class ScriptManager {
                 if (xVal == null || yVal == null || zVal == null || blockId == null) return CompletableFuture.completedFuture(null);
                 
                 try {
-                    context.getWorld().setBlock(xVal.intValue(), yVal.intValue(), zVal.intValue(), blockId);
+                    World world = context.getWorld();
+                    int x = xVal.intValue();
+                    int y = yVal.intValue();
+                    int z = zVal.intValue();
+                    world.execute(() -> BlockEdits.setBlock(world, x, y, z, blockId, SetBlockSettings.NONE));
                 } catch (Exception _) {}
                 return CompletableFuture.completedFuture(null);
             }

@@ -5,12 +5,10 @@
     "DefaultPlayerAttitude": "Neutral",
     "WanderRadius": 15
   },
-  "Appearance": "Player",
   "Parameters": {
     "MaxHealth": {
       "Value": 100,
       "Description": "Max health for the NPC"
     }
-  },
-  "NameTranslationKey": "Citizen"
+  }
 }
