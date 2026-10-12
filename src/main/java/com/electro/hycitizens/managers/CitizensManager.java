@@ -2354,7 +2354,23 @@ public class CitizensManager {
             patrolManager.ensureMoveTargetNow(citizen, world, moveTargetPosition);
         }
 
+        ModelComponent existingModel = resolvedRef.isValid()
+                ? resolvedRef.getStore().getComponent(resolvedRef, ModelComponent.getComponentType())
+                : null;
+        PlayerSkinComponent existingSkin = resolvedRef.isValid()
+                ? resolvedRef.getStore().getComponent(resolvedRef, PlayerSkinComponent.getComponentType())
+                : null;
+        skinTrace(citizen, "RESTORE path (existing entity): isPlayerModel=" + citizen.isPlayerModel()
+                + ", cachedSkin=" + (citizen.getCachedSkin() != null)
+                + ", skinUsername='" + citizen.getSkinUsername() + "'"
+                + ", useLiveSkin=" + citizen.isUseLiveSkin()
+                + ", resolvedRefValid=" + resolvedRef.isValid()
+                + ", entityModelOnDisk=" + (existingModel != null && existingModel.getModel() != null
+                        ? existingModel.getModel().getModelAssetId() : "none")
+                + ", entityHadSkinComponent=" + (existingSkin != null && existingSkin.getPlayerSkin() != null));
+
         if (!refreshSpawnedCitizenAppearance(citizen, resolvedRef) && citizen.isPlayerModel()) {
+            skinTrace(citizen, "RESTORE falling back to updateCitizenSkin");
             updateCitizenSkin(citizen, save);
         }
 
@@ -2997,6 +3013,11 @@ public class CitizensManager {
         }
 
         PlayerSkin skinToUse = determineSkin(citizen);
+        skinTrace(citizen, "SPAWN path (new entity): determineSkin returned "
+                + (skinToUse == null ? "null -> using default skin" : "a skin")
+                + ", cachedSkin=" + (citizen.getCachedSkin() != null)
+                + ", skinUsername='" + citizen.getSkinUsername() + "'"
+                + ", useLiveSkin=" + citizen.isUseLiveSkin());
         if (skinToUse == null) {
             skinToUse = SkinUtilities.createDefaultSkin();
         } else {
@@ -3709,6 +3730,11 @@ public class CitizensManager {
         }
         newModel = withSafeAnimationSetMap(newModel);
 
+        if (!npcRef.isValid()) {
+            skinTrace(citizen, "applyAppearance bail: ref went invalid before components were written");
+            return;
+        }
+
         npcRef.getStore().putComponent(npcRef, PlayerSkinComponent.getComponentType(), new PlayerSkinComponent(sanitizedSkin));
         npcRef.getStore().putComponent(npcRef, ModelComponent.getComponentType(), new ModelComponent(newModel));
 
@@ -3721,32 +3747,56 @@ public class CitizensManager {
                     newModel.getAnimationSetMap() == null
             ));
         }
+
+        PlayerSkinComponent writtenSkin = npcRef.getStore().getComponent(npcRef, PlayerSkinComponent.getComponentType());
+        ModelComponent writtenModel = npcRef.getStore().getComponent(npcRef, ModelComponent.getComponentType());
+        skinTrace(citizen, "applyAppearance wrote components: model=" + newModel.getModelAssetId()
+                + ", skinComponentReadBack=" + (writtenSkin != null && writtenSkin.getPlayerSkin() != null)
+                + ", modelComponentReadBack=" + (writtenModel != null)
+                + ", persistentModel=" + (persistentModel != null));
     }
 
     public boolean refreshSpawnedCitizenAppearance(@Nonnull CitizenData citizen) {
         return refreshSpawnedCitizenAppearance(citizen, resolveLiveNpcRef(citizen));
     }
 
+    /**
+     * Temporary diagnostic trace for the citizen skin path. Grep the server log for
+     * "[skin-trace]" to see which branch each citizen takes on boot.
+     */
+    static void skinTrace(@Nonnull CitizenData citizen, @Nonnull String message) {
+        getLogger().atInfo().log("[HyCitizens][skin-trace] " + citizen.getId() + " (" + citizen.getName() + "): " + message);
+    }
+
     public boolean refreshSpawnedCitizenAppearance(@Nonnull CitizenData citizen, @Nullable Ref<EntityStore> npcRef) {
         if (!citizen.isPlayerModel()) {
+            skinTrace(citizen, "refreshAppearance bail: not a player model");
             return false;
         }
 
         PlayerSkin cachedSkin = citizen.getCachedSkin();
         if (cachedSkin == null) {
+            skinTrace(citizen, "refreshAppearance bail: cachedSkin is null"
+                    + " (skinUsername='" + citizen.getSkinUsername() + "', useLiveSkin=" + citizen.isUseLiveSkin() + ")");
             return false;
         }
 
         if (npcRef == null || !npcRef.isValid()) {
+            skinTrace(citizen, "refreshAppearance bail: npcRef "
+                    + (npcRef == null ? "null" : "invalid")
+                    + " (boundRef=" + (citizen.getNpcRef() == null ? "null" : String.valueOf(citizen.getNpcRef().isValid()))
+                    + ", spawnedUUID=" + citizen.getSpawnedUUID() + ")");
             return false;
         }
 
         World world = Universe.get().getWorld(citizen.getWorldUUID());
         if (world == null) {
+            skinTrace(citizen, "refreshAppearance bail: world null for " + citizen.getWorldUUID());
             return false;
         }
 
         Ref<EntityStore> appearanceRef = npcRef;
+        skinTrace(citizen, "refreshAppearance queued on world thread");
         world.execute(() -> applyPlayerModelAppearance(appearanceRef, citizen, cachedSkin));
         return true;
     }
@@ -3808,23 +3858,40 @@ public class CitizensManager {
         }
 
         if (!skinUsername.isEmpty() && (cachedSkin == null || citizen.isUseLiveSkin())) {
-            SkinUtilities.getSkin(skinUsername).thenAccept(skin -> {
-                if (skin != null) {
-                    citizen.setCachedSkin(skin);
-                    citizen.setLastSkinUpdate(System.currentTimeMillis());
-
-                    if (save) {
-                        saveCitizen(citizen);
-                    }
-
-                    Ref<EntityStore> npcRef = resolveLiveNpcRef(citizen);
-                    if (npcRef != null) {
-                        World world = Universe.get().getWorld(citizen.getWorldUUID());
-                        if (world != null) {
-                            world.execute(() -> applyPlayerModelAppearance(npcRef, citizen, skin));
-                        }
-                    }
+            skinTrace(citizen, "updateCitizenSkin: starting async fetch for '" + skinUsername + "'");
+            SkinUtilities.getSkin(skinUsername).whenComplete((skin, error) -> {
+                if (error != null) {
+                    skinTrace(citizen, "updateCitizenSkin: async fetch FAILED: " + error);
+                    return;
                 }
+                if (skin == null) {
+                    skinTrace(citizen, "updateCitizenSkin: async fetch returned null skin");
+                    return;
+                }
+
+                citizen.setCachedSkin(skin);
+                citizen.setLastSkinUpdate(System.currentTimeMillis());
+
+                if (save) {
+                    saveCitizen(citizen);
+                }
+
+                Ref<EntityStore> npcRef = resolveLiveNpcRef(citizen);
+                if (npcRef == null) {
+                    skinTrace(citizen, "updateCitizenSkin: async fetch done but NO live ref to apply to"
+                            + " (boundRef=" + (citizen.getNpcRef() == null ? "null" : String.valueOf(citizen.getNpcRef().isValid()))
+                            + ", spawnedUUID=" + citizen.getSpawnedUUID() + ")");
+                    return;
+                }
+
+                World world = Universe.get().getWorld(citizen.getWorldUUID());
+                if (world == null) {
+                    skinTrace(citizen, "updateCitizenSkin: async fetch done but world null");
+                    return;
+                }
+
+                skinTrace(citizen, "updateCitizenSkin: async fetch done, queueing apply");
+                world.execute(() -> applyPlayerModelAppearance(npcRef, citizen, skin));
             });
             return;
         }
@@ -3833,7 +3900,10 @@ public class CitizensManager {
             if (save) {
                 saveCitizen(citizen);
             }
+            skinTrace(citizen, "updateCitizenSkin: using cached skin, refreshing appearance");
             refreshSpawnedCitizenAppearance(citizen);
+        } else {
+            skinTrace(citizen, "updateCitizenSkin: nothing to do (no cached skin, skinUsername='" + skinUsername + "')");
         }
     }
 
