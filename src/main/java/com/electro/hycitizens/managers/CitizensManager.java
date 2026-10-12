@@ -159,6 +159,8 @@ public class CitizensManager {
     private final Map<String, FollowSession> standaloneFollowSessions = new ConcurrentHashMap<>();
     private final Map<String, WanderRecoveryState> wanderRecoveryStates = new ConcurrentHashMap<>();
     private final Map<String, ScheduledFuture<?>> pendingNpcSpawnRetryTasks = new ConcurrentHashMap<>();
+    /** Citizens already rebuilt once to recover a skin a restored entity came back without. */
+    private final Set<String> forcedSkinRespawns = ConcurrentHashMap.newKeySet();
     private final Set<String> pendingGeneratedRoleRetries = ConcurrentHashMap.newKeySet();
     private final Map<String, ScheduledFuture<?>> pendingRespawnTasks = new ConcurrentHashMap<>();
     private final Map<String, ScheduledFuture<?>> pendingTemporaryNametagRecoveryTasks = new ConcurrentHashMap<>();
@@ -2369,6 +2371,18 @@ public class CitizensManager {
                         ? existingModel.getModel().getModelAssetId() : "none")
                 + ", entityHadSkinComponent=" + (existingSkin != null && existingSkin.getPlayerSkin() != null));
 
+        // A persisted NPC comes back without its PlayerSkinComponent, and writing the skin and
+        // model components onto an entity clients already know about does not reliably reach
+        // them - which is why a manual respawn fixes the skins but this path does not. Rebuild
+        // the NPC once instead, the same way respawn does. Guarded so it can only happen once
+        // per citizen per session, since the respawn drops the entity and re-enters the spawn
+        // path rather than this one.
+        if (citizen.isPlayerModel() && existingSkin == null && forcedSkinRespawns.add(citizen.getId())) {
+            skinTrace(citizen, "RESTORE: entity has no skin component, rebuilding the NPC instead of patching components");
+            updateSpawnedCitizenNPC(citizen, save);
+            return;
+        }
+
         if (!refreshSpawnedCitizenAppearance(citizen, resolvedRef) && citizen.isPlayerModel()) {
             skinTrace(citizen, "RESTORE falling back to updateCitizenSkin");
             updateCitizenSkin(citizen, save);
@@ -2918,7 +2932,7 @@ public class CitizensManager {
 
         // Handle player model with skin
         if (citizen.isPlayerModel()) {
-            spawnPlayerModelNPC(citizen, world, save);
+            spawnPlayerModelNPC(citizen, world, save, attempt);
             return;
         }
 
@@ -2957,6 +2971,11 @@ public class CitizensManager {
 
         if (npc == null) {
             citizensCurrentlySpawning.remove(citizen.getId());
+            // Same silent failure as the player-model path: retry rather than leave the citizen
+            // without an NPC until someone runs a manual respawn.
+            getLogger().atWarning().log("Failed to spawn NPC for citizen '" + citizen.getId()
+                    + "' (" + citizen.getName() + ") on attempt " + attempt + "; scheduling a retry.");
+            schedulePendingNpcSpawnRetry(citizen, save, attempt);
             return;
         }
 
@@ -3008,6 +3027,10 @@ public class CitizensManager {
     }
 
     public void spawnPlayerModelNPC(CitizenData citizen, World world, boolean save) {
+        spawnPlayerModelNPC(citizen, world, save, 0);
+    }
+
+    public void spawnPlayerModelNPC(CitizenData citizen, World world, boolean save, int attempt) {
         if (citizen.getSpawnedUUID() != null || citizen.getNpcRef() != null) {
             despawnCitizenNPC(citizen);
         }
@@ -3095,6 +3118,12 @@ public class CitizensManager {
 
         if (npc == null) {
             citizensCurrentlySpawning.remove(citizen.getId());
+            // The entity store refuses the spawn while the chunk is still settling - the server
+            // logs "Unable to handle non-spawned entity" for it. Retry instead of giving up
+            // silently, otherwise the citizen is left without an NPC until a manual respawn.
+            getLogger().atWarning().log("Failed to spawn player model NPC for citizen '" + citizen.getId()
+                    + "' (" + citizen.getName() + ") on attempt " + attempt + "; scheduling a retry.");
+            schedulePendingNpcSpawnRetry(citizen, save, attempt);
             return;
         }
 
