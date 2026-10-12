@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.electro"
-version = "2.0.5-debug"
+version = "2.0.6-debug"
 
 repositories {
     mavenCentral()

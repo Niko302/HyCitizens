@@ -3044,7 +3044,11 @@ public class CitizensManager {
         if (skinToUse == null) {
             skinToUse = SkinUtilities.createDefaultSkin();
         } else {
+            PlayerSkin beforeSanitize = skinToUse;
             skinToUse = SkinUtilities.sanitizeSkin(skinToUse);
+            skinTrace(citizen, "SPAWN sanitize: BEFORE [" + SkinUtilities.describeSkin(beforeSanitize)
+                    + "] AFTER [" + SkinUtilities.describeSkin(skinToUse)
+                    + "] " + SkinUtilities.describeCosmeticRegistry());
         }
 
         float scale = Math.max((float)0.01, citizen.getScale());
@@ -3066,10 +3070,14 @@ public class CitizensManager {
         }
 
         if (playerModel == null) {
+            skinTrace(citizen, "SPAWN: createModel produced nothing, falling back to a bare Player model");
             Map<String, String> randomAttachmentIds = new HashMap<>();
             playerModel = new Model.ModelReference("Player", scale, randomAttachmentIds).toModel();
         }
         playerModel = withSafeAnimationSetMap(playerModel);
+        skinTrace(citizen, "SPAWN model built: model=" + playerModel.getModelAssetId()
+                + ", attachments=" + (playerModel.getAttachments() == null ? "null" : playerModel.getAttachments().length)
+                + ", texture=" + playerModel.getTexture());
         //Map<String, String> randomAttachmentIds = new HashMap<>();
         //Model playerModel = new Model.ModelReference("PlayerTestModel_V", scale, randomAttachmentIds).toModel();
 
@@ -3736,6 +3744,9 @@ public class CitizensManager {
 
     private void applyPlayerModelAppearance(@Nonnull Ref<EntityStore> npcRef, @Nonnull CitizenData citizen, @Nonnull PlayerSkin skin) {
         PlayerSkin sanitizedSkin = SkinUtilities.sanitizeSkin(skin);
+        skinTrace(citizen, "applyAppearance sanitize: BEFORE [" + SkinUtilities.describeSkin(skin)
+                + "] AFTER [" + SkinUtilities.describeSkin(sanitizedSkin)
+                + "] " + SkinUtilities.describeCosmeticRegistry());
 
         float scale = Math.max(0.01f, citizen.getScale());
         Model newModel = null;
@@ -3780,6 +3791,8 @@ public class CitizensManager {
         PlayerSkinComponent writtenSkin = npcRef.getStore().getComponent(npcRef, PlayerSkinComponent.getComponentType());
         ModelComponent writtenModel = npcRef.getStore().getComponent(npcRef, ModelComponent.getComponentType());
         skinTrace(citizen, "applyAppearance wrote components: model=" + newModel.getModelAssetId()
+                + ", attachments=" + (newModel.getAttachments() == null ? "null" : newModel.getAttachments().length)
+                + ", texture=" + newModel.getTexture()
                 + ", skinComponentReadBack=" + (writtenSkin != null && writtenSkin.getPlayerSkin() != null)
                 + ", modelComponentReadBack=" + (writtenModel != null)
                 + ", persistentModel=" + (persistentModel != null));

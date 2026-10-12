@@ -473,6 +473,50 @@ public class SkinUtilities {
         return skin;
     }
 
+    /**
+     * Temporary diagnostic: compact description of the cosmetic slots a skin carries, used to
+     * show whether sanitizeSkin preserved the citizen's skin or replaced it with defaults.
+     */
+    public static String describeSkin(@Nullable PlayerSkin skin) {
+        if (skin == null) {
+            return "null";
+        }
+        int nonNull = 0;
+        for (String slot : SLOT_NAMES) {
+            if (getSkinField(skin, slot) != null) {
+                nonNull++;
+            }
+        }
+        return "slots=" + nonNull
+                + " body=" + skin.bodyCharacteristic
+                + " haircut=" + skin.haircut
+                + " head=" + skin.headAccessory
+                + " overtop=" + skin.overtop
+                + " shoes=" + skin.shoes;
+    }
+
+    /**
+     * Temporary diagnostic: whether the cosmetic registry is populated yet. sanitizeSkin
+     * silently rewrites any slot the registry cannot confirm, so an unpopulated registry
+     * degrades a good skin into the default one without logging anything.
+     */
+    public static String describeCosmeticRegistry() {
+        CosmeticsModule module = CosmeticsModule.get();
+        if (module == null) {
+            return "CosmeticsModule=null";
+        }
+        CosmeticRegistry registry = module.getRegistry();
+        if (registry == null) {
+            return "registry=null";
+        }
+        return "registry: haircuts=" + registry.getHaircuts().size()
+                + " headAcc=" + registry.getHeadAccessories().size()
+                + " overtops=" + registry.getOvertops().size()
+                + " shoes=" + registry.getShoes().size()
+                + " faces=" + registry.getFaces().size()
+                + " bodies=" + registry.getBodyCharacteristics().size();
+    }
+
     @Nonnull
     public static PlayerSkin sanitizeSkin(@Nullable PlayerSkin skin) {
         if (skin == null) {
