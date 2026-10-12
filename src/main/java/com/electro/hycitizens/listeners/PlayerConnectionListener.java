@@ -20,16 +20,57 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
 import javax.annotation.Nonnull;
 
+import static com.hypixel.hytale.logger.HytaleLogger.getLogger;
+
 import java.awt.Color;
 import java.util.UUID;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.TimeUnit;
 
 public class PlayerConnectionListener {
+    private static final int DEFAULT_BOOT_SKIN_RESPAWN_DELAY_SECONDS = 10;
+
     private final HyCitizensPlugin plugin;
+    private final AtomicBoolean bootSkinRespawnScheduled = new AtomicBoolean(false);
 
     public PlayerConnectionListener(@Nonnull HyCitizensPlugin plugin) {
         this.plugin = plugin;
+    }
+
+    /**
+     * Citizen skins do not render after a server boot until the citizens are respawned, while a
+     * manual respawn-all always fixes them. Until the underlying cause is found, do that respawn
+     * automatically once, shortly after the first player is fully loaded in.
+     *
+     * <p>Disable with {@code citizens.boot-skin-respawn.enabled: false}, or change the delay with
+     * {@code citizens.boot-skin-respawn.delay-seconds}.
+     */
+    private void scheduleBootSkinRespawn() {
+        if (!bootSkinRespawnScheduled.compareAndSet(false, true)) {
+            return;
+        }
+
+        var config = plugin.getConfigManager();
+        if (config != null && !config.getBoolean("citizens.boot-skin-respawn.enabled", true)) {
+            return;
+        }
+
+        int delaySeconds = config == null
+                ? DEFAULT_BOOT_SKIN_RESPAWN_DELAY_SECONDS
+                : Math.max(0, config.getInt("citizens.boot-skin-respawn.delay-seconds",
+                        DEFAULT_BOOT_SKIN_RESPAWN_DELAY_SECONDS));
+
+        HytaleServer.SCHEDULED_EXECUTOR.schedule(() -> {
+            try {
+                int count = plugin.getCitizensManager().respawnAllCitizens(true);
+                getLogger().atInfo().log("[HyCitizens] Respawned " + count
+                        + " citizen(s) after boot so their skins render. Disable with"
+                        + " citizens.boot-skin-respawn.enabled: false");
+            } catch (Exception e) {
+                getLogger().atWarning().log("[HyCitizens] Boot skin respawn failed: " + e);
+            }
+        }, delaySeconds, TimeUnit.SECONDS);
     }
 
     public void onPlayerConnect(@Nonnull PlayerConnectEvent event) {
@@ -84,6 +125,8 @@ public class PlayerConnectionListener {
 
                 // Trigger player connect script hooks
                 ScriptManager.get().handlePlayerConnect(playerRef);
+
+                scheduleBootSkinRespawn();
 
                 if (!playerRef.hasPermission("hycitizens.admin")) {
                     return;
