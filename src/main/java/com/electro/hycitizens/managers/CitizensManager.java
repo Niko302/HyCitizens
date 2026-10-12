@@ -2354,7 +2354,7 @@ public class CitizensManager {
             patrolManager.ensureMoveTargetNow(citizen, world, moveTargetPosition);
         }
 
-        if (!refreshSpawnedCitizenAppearance(citizen) && citizen.isPlayerModel()) {
+        if (!refreshSpawnedCitizenAppearance(citizen, resolvedRef) && citizen.isPlayerModel()) {
             updateCitizenSkin(citizen, save);
         }
 
@@ -3724,6 +3724,10 @@ public class CitizensManager {
     }
 
     public boolean refreshSpawnedCitizenAppearance(@Nonnull CitizenData citizen) {
+        return refreshSpawnedCitizenAppearance(citizen, resolveLiveNpcRef(citizen));
+    }
+
+    public boolean refreshSpawnedCitizenAppearance(@Nonnull CitizenData citizen, @Nullable Ref<EntityStore> npcRef) {
         if (!citizen.isPlayerModel()) {
             return false;
         }
@@ -3733,8 +3737,7 @@ public class CitizensManager {
             return false;
         }
 
-        UUID spawnedUuid = citizen.getSpawnedUUID();
-        if (spawnedUuid == null) {
+        if (npcRef == null || !npcRef.isValid()) {
             return false;
         }
 
@@ -3743,13 +3746,36 @@ public class CitizensManager {
             return false;
         }
 
-        Ref<EntityStore> npcRef = world.getEntityRef(spawnedUuid);
-        if (npcRef == null || !npcRef.isValid()) {
-            return false;
+        Ref<EntityStore> appearanceRef = npcRef;
+        world.execute(() -> applyPlayerModelAppearance(appearanceRef, citizen, cachedSkin));
+        return true;
+    }
+
+    /**
+     * Resolves the citizen's live NPC entity. Prefers the ref bound by
+     * {@link #bindCitizenEntityRef}, because looking the entity up by UUID through
+     * {@code World#getEntityRef} does not reliably resolve while a chunk is still being
+     * loaded - which is how citizens come back on server boot.
+     */
+    @Nullable
+    private Ref<EntityStore> resolveLiveNpcRef(@Nonnull CitizenData citizen) {
+        Ref<EntityStore> boundRef = citizen.getNpcRef();
+        if (boundRef != null && boundRef.isValid()) {
+            return boundRef;
         }
 
-        world.execute(() -> applyPlayerModelAppearance(npcRef, citizen, cachedSkin));
-        return true;
+        UUID spawnedUuid = citizen.getSpawnedUUID();
+        if (spawnedUuid == null) {
+            return null;
+        }
+
+        World world = Universe.get().getWorld(citizen.getWorldUUID());
+        if (world == null) {
+            return null;
+        }
+
+        Ref<EntityStore> npcRef = world.getEntityRef(spawnedUuid);
+        return npcRef != null && npcRef.isValid() ? npcRef : null;
     }
 
     public PlayerSkin determineSkin(CitizenData citizen) {
@@ -3791,13 +3817,11 @@ public class CitizensManager {
                         saveCitizen(citizen);
                     }
 
-                    if (citizen.getSpawnedUUID() != null) {
+                    Ref<EntityStore> npcRef = resolveLiveNpcRef(citizen);
+                    if (npcRef != null) {
                         World world = Universe.get().getWorld(citizen.getWorldUUID());
                         if (world != null) {
-                            Ref<EntityStore> npcRef = world.getEntityRef(citizen.getSpawnedUUID());
-                            if (npcRef != null && npcRef.isValid()) {
-                                world.execute(() -> applyPlayerModelAppearance(npcRef, citizen, skin));
-                            }
+                            world.execute(() -> applyPlayerModelAppearance(npcRef, citizen, skin));
                         }
                     }
                 }
@@ -3817,8 +3841,8 @@ public class CitizensManager {
         if (citizen.getSpawnedUUID() != null) {
             World world = Universe.get().getWorld(citizen.getWorldUUID());
             if (world != null) {
-                Ref<EntityStore> npcRef = world.getEntityRef(citizen.getSpawnedUUID());
-                if (npcRef != null && npcRef.isValid()) {
+                Ref<EntityStore> npcRef = resolveLiveNpcRef(citizen);
+                if (npcRef != null) {
                     world.execute(() -> {
                         PlayerSkin sanitizedSkin = SkinUtilities.sanitizeSkin(skin);
                         float scale = Math.max((float) 0.01, citizen.getScale());
