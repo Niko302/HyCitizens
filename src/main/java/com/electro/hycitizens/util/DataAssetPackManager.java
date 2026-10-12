@@ -37,7 +37,7 @@ public class DataAssetPackManager {
 
     private static final Path LEGACY_ASSET_PACK_PATH = Paths.get("mods", "HyCitizensRoles");
     private static final Path MIGRATION_CONFLICTS_PATH = DATA_PACK_PATH.resolve("MigrationConflicts");
-    public static final String SERVER_VERSION = ">=0.6.0-pre.13.1 <0.7.0";
+    public static final String SERVER_VERSION = ">=0.7.0";
 
     public static boolean setup() {
         Path configPath = Paths.get("config.json");
